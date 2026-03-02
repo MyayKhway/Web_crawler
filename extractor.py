@@ -19,9 +19,14 @@ def extract_production_companies(text):
     return "N/A"
 
 def extract_distributor(text):
-    match = re.search(r'Distributed by\s*\n\s*(.+?)(?:\n[A-Z])', text, re.DOTALL)
-    if match:
-        names = [line.strip() for line in match.group(1).splitlines() if line.strip()]
+    section = re.search(r'Distributed by\s*\n(.+?)(?:\nRelease|\nRunning|\nCountry|\nLanguage)', text, re.DOTALL)
+    if section:
+        names = []
+        for line in section.group(1).splitlines():
+            line = re.sub(r'\[.*?\]', '', line)  # remove [b], [1], etc.
+            line = line.strip()
+            if len(line) > 2:  # skip single chars like '[', 'b', ']'
+                names.append(line)
         return ', '.join(names)
     return "N/A"
 
@@ -36,8 +41,14 @@ def extract_country(text):
     return "N/A"
 
 def extract_budget(text):
-    match = re.search(r'Budget\s*\n\s*((?:\$|₩|€|£)[\d,]+(?:\.\d+)?\s*(?:million|billion|thousand)?)', text, re.IGNORECASE)
-    return match.group(1).strip() if match else "N/A"
+    match = re.search(
+        r'Budget\s*\n\s*((?:₩|\$|€|£)\s*[\d,.]+\s*(?:million|billion|trillion|thousand)?)',
+        text, re.IGNORECASE | re.DOTALL
+    )
+    if match:
+        result = re.sub(r'\s+', '', match.group(1))  # remove all whitespace
+        return result
+    return "N/A"
 
 def extract_box_office(text):
     match = re.search(r'Box\s*office\s*\n\s*((?:\$|₩|€|£)[\d,]+(?:\.\d+)?\s*(?:million|billion|thousand)?)', text, re.IGNORECASE)
