@@ -77,7 +77,7 @@ def collect_oscar_film_links() -> List[Dict[str, str]]:
     if len(film_links) < 100:
         print(f"Warning: Only {len(film_links)} links collected (target: 100+)")
     else:
-        print(f"✓ Target reached: {len(film_links)} links")
+        print(f"Target reached: {len(film_links)} links")
 
     return film_links
 
@@ -109,7 +109,7 @@ def download_film_pages(film_links: List[Dict[str, str]]) -> List[Dict]:
                 'nominations': nominations,
                 **extracted    
             })
-            print("✓")
+            print("✓ Success")
 
         except Exception as e:
             print(f"✗ Failed: {e}")

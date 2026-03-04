@@ -1,4 +1,19 @@
 import re
+import requests
+from bs4 import BeautifulSoup
+
+
+def extract_poster(soup):
+    # Get movie poster from infobox image
+    infobox = soup.find('table', {'class': 'infobox'})
+    if infobox:
+        img = infobox.find('img')
+        if img:
+            src = img.get('src', '')
+            if src.startswith('//'):
+                src = 'https:' + src
+            return src
+    return None
 
 def extract_director(text):
     match = re.search(r'Directed by\s*\n\s*(.+?)(?:\n[A-Z])', text, re.DOTALL)
@@ -23,7 +38,7 @@ def extract_distributor(text):
     if section:
         names = []
         for line in section.group(1).splitlines():
-            line = re.sub(r'\[.*?\]', '', line)  # remove [b], [1], etc.
+            line = re.sub(r'\[.*?\]', '', line) 
             line = line.strip()
             if len(line) > 2:  # skip single chars like '[', 'b', ']'
                 names.append(line)
@@ -34,6 +49,7 @@ def extract_running_time(text):
     match = re.search(r'(\d+)\s*minutes?', text)
     return f"{match.group(1)} minutes" if match else "N/A"
 
+# Country extraction can be complex due to formatting, so we use another approach
 def extract_country(text):
     match = re.search(r'Countr(?:y|ies)\s*\n\s*(.+?)(?:\nLanguage|\nBudget|\nBased)', text, re.DOTALL)
     if match:
@@ -54,6 +70,7 @@ def extract_box_office(text):
     match = re.search(r'Box\s*office\s*\n\s*((?:\$|₩|€|£)[\d,]+(?:\.\d+)?\s*(?:million|billion|thousand)?)', text, re.IGNORECASE)
     return match.group(1).strip() if match else "N/A"
 
+# Extracting language can be tricky due to formatting, so we use another approach
 def extract_language(text):
     match = re.search(r'Language(?:s)?\s*\n\s*(.+?)(?:\nBudget|\nBox office|\nRelease|\nCinematography)', text, re.DOTALL)
     if match:
@@ -62,9 +79,6 @@ def extract_language(text):
 
 
 def extract_film_data(url):
-    import requests
-    from bs4 import BeautifulSoup
-
     HEADERS = {'User-Agent': 'Mozilla/5.0 (compatible; OscarFilmScraper/1.0)'}
     
     try:
@@ -74,7 +88,7 @@ def extract_film_data(url):
         if not infobox:
             return None
 
-        text = infobox.get_text(separator='\n')  # critical — prevents field bleeding
+        text = infobox.get_text(separator='\n')
 
         return {
             'director':             extract_director(text),
@@ -86,6 +100,7 @@ def extract_film_data(url):
             'budget':               extract_budget(text),
             'box_office':           extract_box_office(text),
             'language':             extract_language(text),
+            'poster':               extract_poster(soup),   
         }
     except Exception as e:
         print(f"Error: {e}")
@@ -103,6 +118,6 @@ if __name__ == "__main__":
         data = extract_film_data(url)
         if data:
             for key, value in data.items():
-                print(f"  {'✓' if value != 'N/A' else '✗ N/A'}  {key}: {value}")
+                print(f"  {'✓' if value != 'N/A' else 'N/A'}  {key}: {value}")
         else:
-            print("  ✗ Failed")
+            print("Failed")
