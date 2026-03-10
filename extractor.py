@@ -22,7 +22,11 @@ def extract_director(text):
 def extract_starring(text):
     section = re.search(r'Starring\s*\n(.+?)(?:\nCinematography|\nProduction|\nDirected|\nMusic|\nEdited)', text, re.DOTALL)
     if section:
-        names = [line.strip() for line in section.group(1).splitlines() if line.strip()]
+        names = []
+        for line in section.group(1).splitlines():
+            line = re.sub(r'\[.*?\]', '', line).strip()
+            if len(line) > 2:
+                names.append(line)
         return ', '.join(names)
     return "N/A"
 
@@ -51,9 +55,14 @@ def extract_running_time(text):
 
 # Country extraction can be complex due to formatting, so we use another approach
 def extract_country(text):
-    match = re.search(r'Countr(?:y|ies)\s*\n\s*(.+?)(?:\nLanguage|\nBudget|\nBased)', text, re.DOTALL)
+    match = re.search(r'Countr(?:y|ies)\s*\n\s*(.+?)(?:\nLanguage|\nBudget|\nBased|\nDistributed|\Z)', text, re.DOTALL)
     if match:
-        return ', '.join(line.strip() for line in match.group(1).splitlines() if line.strip())
+        countries = []
+        for line in match.group(1).splitlines():
+            line = re.sub(r'\[.*?\]', '', line).strip()
+            if len(line) > 2:
+                countries.append(line)
+        return ', '.join(countries) if countries else "N/A"
     return "N/A"
 
 def extract_budget(text):
@@ -62,19 +71,28 @@ def extract_budget(text):
         text, re.IGNORECASE | re.DOTALL
     )
     if match:
-        result = re.sub(r'\s+', '', match.group(1))  # remove all whitespace
-        return result
+        return re.sub(r'\s+', ' ', match.group(1)).strip()
     return "N/A"
 
 def extract_box_office(text):
     match = re.search(r'Box\s*office\s*\n\s*((?:\$|₩|€|£)[\d,]+(?:\.\d+)?\s*(?:million|billion|thousand)?)', text, re.IGNORECASE)
-    return match.group(1).strip() if match else "N/A"
+    if match:
+        return re.sub(r'\s+', ' ', match.group(1)).strip()
+    return "N/A"
 
 # Extracting language can be tricky due to formatting, so we use another approach
 def extract_language(text):
-    match = re.search(r'Language(?:s)?\s*\n\s*(.+?)(?:\nBudget|\nBox office|\nRelease|\nCinematography)', text, re.DOTALL)
+    match = re.search(
+        r'Language(?:s)?\s*\n\s*(.+?)(?:\nBudget|\nBox\s*office|\nRelease|\nCinematography|\nProduced|\nEdited|\nMusic|\nCountr|\Z)',
+        text, re.DOTALL
+    )
     if match:
-        return ', '.join(line.strip() for line in match.group(1).splitlines() if line.strip())
+        langs = []
+        for line in match.group(1).splitlines():
+            line = re.sub(r'\[.*?\]', '', line).strip()  # remove citations like [1], [a]
+            if len(line) > 2:
+                langs.append(line)
+        return ', '.join(langs) if langs else "N/A"
     return "N/A"
 
 

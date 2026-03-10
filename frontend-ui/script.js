@@ -3,10 +3,6 @@ console.log("JS is running");
 let movies = [];
 let originalMovies = [];
 let currentMovies = [];
-let sortState = 0;
-// 0 = Default
-// 1 = A-Z
-// 2 = Z-A
 
 /* =========================
    LOAD DATA
@@ -20,6 +16,7 @@ fetch("/api/films")
         currentMovies = [...data];
 
         if (document.getElementById("movieGrid")) {
+            populateYearFilter();
             displayMovies(currentMovies);
             setupPagination(currentMovies);
             setupHomeEvents();
@@ -32,36 +29,41 @@ fetch("/api/films")
 
 /* ================HOME PAGE===================== */
 
+function populateYearFilter() {
+    const yearFilter = document.getElementById("yearFilter");
+    if (!yearFilter) return;
+    const years = [...new Set(originalMovies.map(m => m.year))].sort((a, b) => b - a);
+    years.forEach(year => {
+        const opt = document.createElement("option");
+        opt.value = year;
+        opt.textContent = year;
+        yearFilter.appendChild(opt);
+    });
+}
+
 function setupHomeEvents() {
     const searchInput = document.getElementById("searchInput");
-    if (searchInput) {
-        searchInput.addEventListener("input", applyFilters);
-    }
+    if (searchInput) searchInput.addEventListener("input", applyFilters);
 
     const yearFilter = document.getElementById("yearFilter");
-    if (yearFilter) {
-        yearFilter.addEventListener("change", applyFilters);
-    }
+    if (yearFilter) yearFilter.addEventListener("change", applyFilters);
 
-    const sortBtn = document.getElementById("sortBtn");
-    if (sortBtn) {
-        sortBtn.addEventListener("click", handleSort);
-    }
+    const sortSelect = document.getElementById("sortSelect");
+    if (sortSelect) sortSelect.addEventListener("change", applyFilters);
 }
 
 /* ================PAGING===================== */
 const moviesPerPage = 24;
 let currentPage = 1;
 
-function displayMovies(movies) {
+function displayMovies(list) {
     const grid = document.getElementById("movieGrid");
     if (!grid) return;
 
     grid.innerHTML = "";
 
     const start = (currentPage - 1) * moviesPerPage;
-    const end = start + moviesPerPage;
-    const moviesToShow = movies.slice(start, end);
+    const moviesToShow = list.slice(start, start + moviesPerPage);
 
     moviesToShow.forEach((movie) => {
         const movieCard = document.createElement("div");
@@ -88,37 +90,87 @@ function displayMovies(movies) {
     });
 }
 
-function setupPagination(movies) {
-    const pageCount = Math.ceil(movies.length / moviesPerPage);
+function setupPagination(list) {
+    const pageCount = Math.ceil(list.length / moviesPerPage);
     const pagination = document.getElementById("pagination");
     pagination.innerHTML = "";
 
-    for (let i = 1; i <= pageCount; i++) {
-        const button = document.createElement("button");
-        button.innerText = i;
+    if (pageCount <= 1) return;
 
-        if (i === currentPage) {
-            button.classList.add("active-page");
-        }
-
-        button.addEventListener("click", () => {
-            currentPage = i;
-            displayMovies(movies);
-            setupPagination(movies);
+    function makeBtn(label, page, isActive) {
+        const btn = document.createElement("button");
+        btn.innerText = label;
+        if (isActive) btn.classList.add("active-page");
+        btn.addEventListener("click", () => {
+            currentPage = page;
+            displayMovies(list);
+            setupPagination(list);
             window.scrollTo({ top: 0, behavior: "smooth" });
         });
-
-        pagination.appendChild(button);
+        return btn;
     }
+
+    function makeEllipsis() {
+        const span = document.createElement("span");
+        span.innerText = "...";
+        span.className = "pagination-ellipsis";
+        return span;
+    }
+
+    // Prev
+    const prev = makeBtn("‹", currentPage - 1, false);
+    if (currentPage === 1) prev.disabled = true;
+    pagination.appendChild(prev);
+
+    // Windowed page numbers
+    const delta = 2;
+    const pagesToShow = [];
+    for (let i = 1; i <= pageCount; i++) {
+        if (i === 1 || i === pageCount || (i >= currentPage - delta && i <= currentPage + delta)) {
+            pagesToShow.push(i);
+        }
+    }
+
+    let lastPage = null;
+    for (const page of pagesToShow) {
+        if (lastPage !== null && page - lastPage > 1) {
+            pagination.appendChild(makeEllipsis());
+        }
+        pagination.appendChild(makeBtn(page, page, page === currentPage));
+        lastPage = page;
+    }
+
+    // Next
+    const next = makeBtn("›", currentPage + 1, false);
+    if (currentPage === pageCount) next.disabled = true;
+    pagination.appendChild(next);
 }
 
 /* ================FILTER/SORT===================== */
 
+function parseAmount(str) {
+    if (!str || str === 'N/A') return -1;
+    const match = str.match(/([₩€£$])?\s*([\d,.]+)\s*(million|billion|thousand)?/i);
+    if (!match) return -1;
+    let num = parseFloat(match[2].replace(/,/g, ''));
+    const unit = (match[3] || '').toLowerCase();
+    if (unit === 'billion')       num *= 1_000_000_000;
+    else if (unit === 'million')  num *= 1_000_000;
+    else if (unit === 'thousand') num *= 1_000;
+    // Ballpark conversion to USD
+    const currency = match[1] || '$';
+    if (currency === '€')  num *= 1.1;   // EUR → USD
+    else if (currency === '£') num *= 1.27;  // GBP → USD
+    else if (currency === '₩') num *= 0.00075; // KRW → USD
+    return num;
+}
+
 function applyFilters() {
     const searchValue = document.getElementById("searchInput")?.value.toLowerCase() || "";
     const yearValue = document.getElementById("yearFilter")?.value || "All";
+    const sortValue = document.getElementById("sortSelect")?.value || "default";
 
-    currentMovies = originalMovies.filter(movie => {
+    let result = originalMovies.filter(movie => {
         const matchesSearch =
             (movie.title || "").toLowerCase().includes(searchValue) ||
             (movie.director || "").toLowerCase().includes(searchValue) ||
@@ -127,15 +179,26 @@ function applyFilters() {
         return matchesSearch && matchesYear;
     });
 
+    if (sortValue === "wins_desc") {
+        result.sort((a, b) => (parseInt(b.awards) || 0) - (parseInt(a.awards) || 0));
+    } else if (sortValue === "nominations_desc") {
+        result.sort((a, b) => (parseInt(b.nominations) || 0) - (parseInt(a.nominations) || 0));
+    } else if (sortValue === "budget_desc") {
+        result.sort((a, b) => parseAmount(b.budget) - parseAmount(a.budget));
+    } else if (sortValue === "boxoffice_desc") {
+        result.sort((a, b) => parseAmount(b.box_office) - parseAmount(a.box_office));
+    }
+
+    currentMovies = result;
+
     const grid = document.getElementById("movieGrid");
     const noResults = document.getElementById("noResults");
-    const searchText = searchValue.trim();
 
     if (currentMovies.length === 0) {
         grid.style.display = "none";
         noResults.style.display = "flex";
-        noResults.textContent = searchText !== ""
-            ? `No movies found for "${searchText}"`
+        noResults.textContent = searchValue.trim()
+            ? `No movies found for "${searchValue.trim()}"`
             : `No movies found`;
     } else {
         grid.style.display = "grid";
@@ -144,28 +207,6 @@ function applyFilters() {
         displayMovies(currentMovies);
         setupPagination(currentMovies);
     }
-}
-
-function handleSort() {
-    sortState++;
-
-    if (sortState === 1) {
-        currentMovies.sort((a, b) => a.title.localeCompare(b.title));
-        document.getElementById("sortBtn").textContent = "Sort: A-Z";
-    } else if (sortState === 2) {
-        currentMovies.sort((a, b) => b.title.localeCompare(a.title));
-        document.getElementById("sortBtn").textContent = "Sort: Z-A";
-    } else {
-        currentMovies = [...originalMovies];
-        applyFilters();
-        sortState = 0;
-        document.getElementById("sortBtn").textContent = "Sort: Default";
-        return;
-    }
-
-    currentPage = 1;
-    displayMovies(currentMovies);
-    setupPagination(currentMovies);
 }
 
 /* ================DETAILS PAGE===================== */
@@ -180,7 +221,6 @@ function showDetails() {
     const container = document.getElementById("detailsContainer");
     if (!container) return;
 
-    // ← Read index from URL /film/5 → 5
     const index = Number(window.location.pathname.split("/").pop());
     console.log("index from URL:", index);
     console.log("movies length:", movies.length);
@@ -232,11 +272,13 @@ if (logo) {
 
         const searchInput = document.getElementById("searchInput");
         const yearFilter = document.getElementById("yearFilter");
+        const sortSelect = document.getElementById("sortSelect");
         const noResults = document.getElementById("noResults");
         const grid = document.getElementById("movieGrid");
 
         if (searchInput) searchInput.value = "";
         if (yearFilter) yearFilter.value = "All";
+        if (sortSelect) sortSelect.value = "default";
 
         currentMovies = [...originalMovies];
         currentPage = 1;

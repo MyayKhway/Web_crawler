@@ -43,7 +43,7 @@ def collect_oscar_film_links() -> List[Dict[str, str]]:
                     year = text
                     break
 
-            if not year or not (2014 <= int(year) <= 2024):
+            if not year or not (1927 <= int(year) <= 2024):
                 continue
 
             first_cell = cells[0]
@@ -74,8 +74,8 @@ def collect_oscar_film_links() -> List[Dict[str, str]]:
             })
 
     print(f"Collected {len(film_links)} unique film links")
-    if len(film_links) < 100:
-        print(f"Warning: Only {len(film_links)} links collected (target: 100+)")
+    if len(film_links) < 500:
+        print(f"Warning: Only {len(film_links)} links collected (target: 500+)")
     else:
         print(f"Target reached: {len(film_links)} links")
 

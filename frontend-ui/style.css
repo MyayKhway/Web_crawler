@@ -305,6 +305,17 @@ poster-wrapper {
     font-weight: bold;
 }
 
+#pagination button:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.pagination-ellipsis {
+    color: #888;
+    padding: 8px 4px;
+    user-select: none;
+}
+
 /* ================= DETAILS PAGE ================= */
 .details-page{
     width: 80%;
